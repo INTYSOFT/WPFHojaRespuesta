@@ -11,6 +11,7 @@ public sealed class OmrTemplateConfig
     public double SelectionThreshold { get; init; } = 0.25;
     public double AmbiguityMargin { get; init; } = 0.08;
     public double DniThreshold { get; init; } = 0.15;
+    public bool depurar_imagen { get; init; } = true;
 
     public static OmrTemplateConfig CreateDefault() => new()
     {

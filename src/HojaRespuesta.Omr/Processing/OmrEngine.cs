@@ -23,8 +23,8 @@ public sealed class OmrEngine
     public PageOmrResult ProcessPage(Mat pageImage, int pageNumber, OmrTemplateConfig config)
     {
         using var binary = ImagePreprocessor.PrepareBinary(pageImage);
-        var dni = _dniReader.ReadDni(pageImage, binary, config);
-        var answers = _answerReader.ReadAnswers(pageImage, binary, config);
+        var dni = _dniReader.ReadDni(pageImage, binary, config, pageNumber);
+        var answers = _answerReader.ReadAnswers(pageImage, binary, config, pageNumber);
 
         return new PageOmrResult
         {

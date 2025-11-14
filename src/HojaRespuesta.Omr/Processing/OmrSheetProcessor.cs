@@ -157,11 +157,24 @@ public sealed class OmrSheetProcessor
         }
 
         var points = marks.Select(m => new Point2f(m.Center.X, m.Center.Y)).ToArray();
-        Cv2.FitLine(points, out Vec4f line, DistanceTypes.L2, 0, 0.01, 0.01);
+        using var pointsMat = CreatePointMatrix(points);
+        Cv2.FitLine(pointsMat, out Vec4f line, DistanceTypes.L2, 0, 0.01, 0.01);
         var vx = line.Item0;
         var vy = line.Item1;
         var angle = Math.Atan2(vy, vx) * 180.0 / Math.PI;
         return angle;
+    }
+
+    private static Mat CreatePointMatrix(Point2f[] points)
+    {
+        var mat = new Mat(points.Length, 1, MatType.CV_32FC2);
+        var indexer = mat.GetGenericIndexer<Vec2f>();
+        for (int i = 0; i < points.Length; i++)
+        {
+            indexer[i, 0] = new Vec2f(points[i].X, points[i].Y);
+        }
+
+        return mat;
     }
 
     private static Mat Rotate(Mat source, double angle)

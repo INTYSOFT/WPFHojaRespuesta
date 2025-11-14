@@ -157,6 +157,8 @@ public sealed class OmrSheetProcessor
         }
 
         var points = marks.Select(m => new Point2f(m.Center.X, m.Center.Y)).ToArray();
+
+        Cv2.FitLine(points, out Vec4f line, DistanceTypes.L2, 0, 0.01, 0.01);
         Cv2.FitLine(points, out Vec4f line, DistTypes.L2, 0, 0.01, 0.01);
         var vx = line.Item0;
         var vy = line.Item1;

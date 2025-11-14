@@ -257,15 +257,22 @@ public sealed class OmrSheetProcessor
 
         var blocks = BuildAnswerBlockMarks(answerMarks, options, settings.QuestionBlocks.Count);
         var roiSize = Math.Max(5, (int)Math.Round(settings.AnswerRoiSizeRatio * height));
+        double[]? fallbackOptionCenters = null;
 
         for (int blockIndex = 0; blockIndex < settings.QuestionBlocks.Count; blockIndex++)
         {
             var block = settings.QuestionBlocks[blockIndex];
             var marks = blocks[blockIndex];
-            if (marks.Count != options)
+            var optionCenters = ResolveOptionCenters(marks, fallbackOptionCenters, options);
+            if (optionCenters is null)
             {
                 results.AddRange(CreateBlankBlock(block));
                 continue;
+            }
+
+            if (marks.Count == options)
+            {
+                fallbackOptionCenters = optionCenters;
             }
 
             var yBase = marks.Average(m => m.Center.Y);
@@ -281,7 +288,7 @@ public sealed class OmrSheetProcessor
 
                 for (int option = 0; option < options; option++)
                 {
-                    var xCenter = marks[option].Center.X;
+                    var xCenter = optionCenters[option];
                     var roi = CreateCenteredRect(xCenter, yCenter, roiSize, width, height);
                     var intensity = SampleIntensity(page.Gray, roi);
                     debugRects?.Add(roi);
@@ -336,6 +343,27 @@ public sealed class OmrSheetProcessor
         return results;
     }
 
+    private static double[]? ResolveOptionCenters(IReadOnlyList<BottomMark> marks, double[]? fallbackCenters, int options)
+    {
+        if (marks.Count == 0)
+        {
+            return null;
+        }
+
+        if (marks.Count == options)
+        {
+            var centers = new double[options];
+            for (int i = 0; i < options; i++)
+            {
+                centers[i] = marks[i].Center.X;
+            }
+
+            return centers;
+        }
+
+        return fallbackCenters;
+    }
+
     private static List<List<BottomMark>> BuildAnswerBlockMarks(IReadOnlyList<BottomMark> marks, int optionsPerQuestion, int blockCount)
     {
         var blocks = new List<List<BottomMark>>();
@@ -348,6 +376,11 @@ public sealed class OmrSheetProcessor
                 blocks.Add(new List<BottomMark>(current));
                 current.Clear();
             }
+        }
+
+        if (current.Count > 0)
+        {
+            blocks.Add(new List<BottomMark>(current));
         }
 
         while (blocks.Count < blockCount)

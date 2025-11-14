@@ -21,7 +21,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 {
     private readonly PdfPageLoader _pdfPageLoader = new();
     private readonly OmrEngine _omrEngine = new();
-    private readonly OmrTemplateConfig _templateConfig = OmrTemplateConfig.CreateDefault();
+    private readonly OmrDetectionSettings _detectionSettings = OmrDetectionSettings.CreateDefault();
     private readonly ObservableCollection<PageSummaryViewModel> _pageSummaries = new();
     private readonly ObservableCollection<AnswerResult> _selectedAnswers = new();
     private readonly List<PageSource> _loadedPages = new();
@@ -175,7 +175,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 var items = new List<PageSummaryViewModel>();
                 foreach (var page in _loadedPages)
                 {
-                    var result = _omrEngine.ProcessPage(page.Image, page.PageNumber, _templateConfig);
+                    var result = _omrEngine.ProcessPage(page.Image, page.PageNumber, _detectionSettings);
                     items.Add(new PageSummaryViewModel(result, page));
                 }
 
@@ -207,7 +207,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             StatusMessage = "Exportando CSV...";
             var builder = new StringBuilder();
-            builder.AppendLine("Archivo,Página,DNI,Pregunta,Respuesta");
+            builder.AppendLine("Archivo,Página,DNI,Pregunta,Respuesta,Estado");
             var pdfName = _currentPdfPath is null ? string.Empty : Path.GetFileName(_currentPdfPath);
 
             await Task.Run(() =>
@@ -217,7 +217,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     foreach (var answer in summary.Result.Answers)
                     {
                         var answerValue = answer.SelectedOption?.ToString() ?? string.Empty;
-                        builder.AppendLine($"{pdfName},{summary.PageNumber},{summary.Dni},{answer.QuestionNumber},{answerValue}");
+                        builder.AppendLine($"{pdfName},{summary.PageNumber},{summary.Dni},{answer.QuestionNumber},{answerValue},{answer.State}");
                     }
                 }
 

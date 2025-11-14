@@ -6,31 +6,22 @@ namespace HojaRespuesta.Omr.Processing;
 
 public sealed class OmrEngine
 {
-    private readonly DniReader _dniReader;
-    private readonly AnswerReader _answerReader;
+    private readonly OmrSheetProcessor _processor = new();
+    private readonly OmrDetectionSettings _defaultSettings;
 
     public OmrEngine()
-        : this(new DniReader(), new AnswerReader())
+        : this(OmrDetectionSettings.CreateDefault())
     {
     }
 
-    public OmrEngine(DniReader dniReader, AnswerReader answerReader)
+    public OmrEngine(OmrDetectionSettings settings)
     {
-        _dniReader = dniReader;
-        _answerReader = answerReader;
+        _defaultSettings = settings;
     }
 
-    public PageOmrResult ProcessPage(Mat pageImage, int pageNumber, OmrTemplateConfig config)
+    public PageOmrResult ProcessPage(Mat pageImage, int pageNumber, OmrDetectionSettings? settings = null)
     {
-        using var binary = ImagePreprocessor.PrepareBinary(pageImage);
-        var dni = _dniReader.ReadDni(pageImage, binary, config, pageNumber);
-        var answers = _answerReader.ReadAnswers(pageImage, binary, config, pageNumber);
-
-        return new PageOmrResult
-        {
-            PageNumber = pageNumber,
-            Dni = dni,
-            Answers = answers
-        };
+        var activeSettings = settings ?? _defaultSettings;
+        return _processor.ProcessPage(pageImage, pageNumber, activeSettings);
     }
 }

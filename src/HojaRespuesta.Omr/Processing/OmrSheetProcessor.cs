@@ -158,7 +158,7 @@ public sealed class OmrSheetProcessor
 
         var points = marks.Select(m => new Point2f(m.Center.X, m.Center.Y)).ToArray();
         using var pointsMat = CreatePointMatrix(points);
-        Cv2.FitLine(pointsMat, out Vec4f line, DistanceTypes.L2, 0, 0.01, 0.01);
+        var line = Cv2.FitLine(pointsMat, DistanceTypes.L2, 0, 0.01, 0.01);
         var vx = line.Item0;
         var vy = line.Item1;
         var angle = Math.Atan2(vy, vx) * 180.0 / Math.PI;

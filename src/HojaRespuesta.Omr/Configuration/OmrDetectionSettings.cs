@@ -24,6 +24,8 @@ public sealed class OmrDetectionSettings
     public double AnswerRoiSizeRatio { get; init; } = 0.013;
     public double AnswerIntensityThreshold { get; init; } = 150;
     public double AnswerMultipleMargin { get; init; } = 12;
+    public double AnswerBlockSplitGapRatio { get; init; } = 0.015; // Separación mínima (respecto al ancho) para separar bloques verticales
+    public double AnswerColumnMergeGapRatio { get; init; } = 0.008; // Máxima distancia (respecto al ancho) para fusionar marcas duplicadas por alternativa
     public IReadOnlyList<QuestionBlockSettings> QuestionBlocks { get; init; } = new List<QuestionBlockSettings>
     {
         new() { StartQuestionNumber = 1,  QuestionCount = 25, HeightRatio = 0.63 },

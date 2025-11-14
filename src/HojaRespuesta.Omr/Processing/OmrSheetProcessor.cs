@@ -10,8 +10,12 @@ using OpenCvSharp;
 namespace HojaRespuesta.Omr.Processing;
 
 /// <summary>
-/// Procesa una página individual: detecta marcas inferiores, corrige inclinación
-/// y lee DNI + respuestas usando OpenCvSharp.
+/// Procesa una página individual siguiendo el flujo descrito en la especificación:
+/// 1) preprocesa (gris, blur, binariza, detecta y alinea marcas inferiores),
+/// 2) calcula la grilla del DNI a partir de las 8 marcas ancla y
+/// 3) reconstruye cada bloque de preguntas usando las marcas rectangulares
+///    alineadas con A–E. Toda la lectura se basa en los centros detectados, sin
+///    coordenadas absolutas.
 /// Ejemplo para una sola página en WPF:
 /// <code>
 /// var settings = OmrDetectionSettings.CreateDefault();
@@ -255,7 +259,7 @@ public sealed class OmrSheetProcessor
             .OrderBy(m => m.Center.X)
             .ToList();
 
-        var blocks = BuildAnswerBlockMarks(answerMarks, options, settings.QuestionBlocks.Count);
+        var blocks = BuildAnswerBlockMarks(answerMarks, width, options, settings);
         var roiSize = Math.Max(5, (int)Math.Round(settings.AnswerRoiSizeRatio * height));
 
         for (int blockIndex = 0; blockIndex < settings.QuestionBlocks.Count; blockIndex++)
@@ -336,26 +340,121 @@ public sealed class OmrSheetProcessor
         return results;
     }
 
-    private static List<List<BottomMark>> BuildAnswerBlockMarks(IReadOnlyList<BottomMark> marks, int optionsPerQuestion, int blockCount)
+    private static List<List<BottomMark>> BuildAnswerBlockMarks(IReadOnlyList<BottomMark> marks, int width, int optionsPerQuestion, OmrDetectionSettings settings)
     {
+        var targetBlockCount = settings.QuestionBlocks.Count;
         var blocks = new List<List<BottomMark>>();
-        var current = new List<BottomMark>();
-        foreach (var mark in marks)
+        if (marks.Count == 0)
         {
-            current.Add(mark);
-            if (current.Count == optionsPerQuestion)
+            return Enumerable.Repeat(0, targetBlockCount).Select(_ => new List<BottomMark>()).ToList();
+        }
+
+        var splitGap = settings.AnswerBlockSplitGapRatio * width;
+        var mergeGap = settings.AnswerColumnMergeGapRatio * width;
+        var current = new List<BottomMark> { marks[0] };
+
+        for (int i = 1; i < marks.Count; i++)
+        {
+            var previous = marks[i - 1];
+            var currentMark = marks[i];
+            if (currentMark.Center.X - previous.Center.X > splitGap)
             {
-                blocks.Add(new List<BottomMark>(current));
-                current.Clear();
+                blocks.Add(NormalizeBlock(current, optionsPerQuestion, mergeGap));
+                current = new List<BottomMark>();
+            }
+
+            current.Add(currentMark);
+        }
+
+        blocks.Add(NormalizeBlock(current, optionsPerQuestion, mergeGap));
+
+        while (blocks.Count > targetBlockCount)
+        {
+            var previousCount = blocks.Count;
+            MergeClosestBlocks(blocks, optionsPerQuestion, mergeGap);
+            if (blocks.Count == previousCount)
+            {
+                break;
             }
         }
 
-        while (blocks.Count < blockCount)
+        while (blocks.Count < targetBlockCount)
         {
             blocks.Add(new List<BottomMark>());
         }
 
-        return blocks.Take(blockCount).ToList();
+        return blocks.Take(targetBlockCount).ToList();
+    }
+
+    private static void MergeClosestBlocks(List<List<BottomMark>> blocks, int optionsPerQuestion, double mergeGap)
+    {
+        if (blocks.Count <= 1)
+        {
+            return;
+        }
+
+        var minGap = double.MaxValue;
+        var index = -1;
+        for (int i = 1; i < blocks.Count; i++)
+        {
+            var left = blocks[i - 1];
+            var right = blocks[i];
+            if (left.Count == 0 || right.Count == 0)
+            {
+                index = i - 1;
+                break;
+            }
+
+            var gap = right.First().Center.X - left.Last().Center.X;
+            if (gap < minGap)
+            {
+                minGap = gap;
+                index = i - 1;
+            }
+        }
+
+        if (index < 0)
+        {
+            return;
+        }
+
+        var merged = blocks[index].Concat(blocks[index + 1]).OrderBy(m => m.Center.X).ToList();
+        blocks[index] = NormalizeBlock(merged, optionsPerQuestion, mergeGap);
+        blocks.RemoveAt(index + 1);
+    }
+
+    private static List<BottomMark> NormalizeBlock(List<BottomMark> block, int optionsPerQuestion, double mergeGap)
+    {
+        if (block.Count == 0)
+        {
+            return block;
+        }
+
+        block.Sort((a, b) => a.Center.X.CompareTo(b.Center.X));
+        var merged = new List<BottomMark> { block[0] };
+        for (int i = 1; i < block.Count; i++)
+        {
+            var previous = merged[^1];
+            var current = block[i];
+            if (current.Center.X - previous.Center.X <= mergeGap)
+            {
+                merged[^1] = current.Area > previous.Area ? current : previous;
+            }
+            else
+            {
+                merged.Add(current);
+            }
+        }
+
+        if (merged.Count > optionsPerQuestion)
+        {
+            merged = merged
+                .OrderBy(m => m.Center.X)
+                .Take(optionsPerQuestion)
+                .ToList();
+        }
+
+        return merged;
     }
 
     private static IEnumerable<AnswerResult> CreateBlankBlock(OmrDetectionSettings.QuestionBlockSettings block)

@@ -156,26 +156,26 @@ public sealed class OmrSheetProcessor
             return 0;
         }
 
-        var points = marks.Select(m => new Point2f(m.Center.X, m.Center.Y)).ToArray();
-        using var pointsMat = CreatePointMatrix(points);
-        var line = Cv2.FitLine(pointsMat, DistanceTypes.L2, 0, 0.01, 0.01);
-        var vx = line.Item0;
-        var vy = line.Item1;
-        var angle = Math.Atan2(vy, vx) * 180.0 / Math.PI;
+        // 1) Generamos la secuencia de Point2f a partir de tus marcas
+        var points = marks
+            .Select(m => new Point2f(m.Center.X, m.Center.Y))
+            .ToArray(); // Point2f[]
+
+        // 2) Usamos la sobrecarga correcta de FitLine:
+        //    Line2D Cv2.FitLine(IEnumerable<Point2f> points, DistanceTypes distType, double param, double reps, double aeps)
+        Line2D line = Cv2.FitLine(points, DistanceTypes.L2, 0, 0.01, 0.01);
+
+        // 3) Obtenemos el vector director de la recta
+        double vx = line.Vx;
+        double vy = line.Vy;
+
+        // 4) Ángulo en grados
+        double angle = Math.Atan2(vy, vx) * 180.0 / Math.PI;
         return angle;
     }
 
-    private static Mat CreatePointMatrix(Point2f[] points)
-    {
-        var mat = new Mat(points.Length, 1, MatType.CV_32FC2);
-        var indexer = mat.GetGenericIndexer<Vec2f>();
-        for (int i = 0; i < points.Length; i++)
-        {
-            indexer[i, 0] = new Vec2f(points[i].X, points[i].Y);
-        }
 
-        return mat;
-    }
+
 
     private static Mat Rotate(Mat source, double angle)
     {
